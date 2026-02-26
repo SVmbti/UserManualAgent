@@ -5,32 +5,46 @@
 {% block content %}
 <div class="progress-container glass-card">
     <div class="progress-header">
-        <h2 id="phase-title">Starting scan...</h2>
+        <h2 id="phase-title">Opening browser...</h2>
         <span class="status-badge" id="status-badge">Initializing</span>
     </div>
 
-    <div class="progress-bar-wrapper">
-        <div class="progress-bar" id="progress-bar" style="width: 0%"></div>
+    <!-- Login prompt — shown while waiting for user -->
+    <div id="login-prompt" class="login-prompt">
+        <div class="login-prompt-icon">🌐</div>
+        <h3>A browser window has opened</h3>
+        <p>Log in to the application and navigate wherever you need. When you're ready, click the button below to start
+            the crawl.</p>
+        <button class="btn btn-primary" id="begin-crawl-btn" onclick="beginCrawl('{{ scan_id }}')">
+            ✅ I'm Logged In — Begin Crawl
+        </button>
     </div>
 
-    <div class="progress-stats">
-        <div class="stat">
-            <span class="stat-value" id="pages-visited">0</span>
-            <span class="stat-label">Pages Visited</span>
+    <!-- Progress UI — shown during crawling -->
+    <div id="crawl-progress" style="display:none;">
+        <div class="progress-bar-wrapper">
+            <div class="progress-bar" id="progress-bar" style="width: 0%"></div>
         </div>
-        <div class="stat">
-            <span class="stat-value" id="pages-queued">0</span>
-            <span class="stat-label">Pages Queued</span>
-        </div>
-        <div class="stat">
-            <span class="stat-value" id="phase-label">—</span>
-            <span class="stat-label">Phase</span>
-        </div>
-    </div>
 
-    <div class="current-activity">
-        <div class="activity-dot"></div>
-        <span id="current-url">Preparing browser...</span>
+        <div class="progress-stats">
+            <div class="stat">
+                <span class="stat-value" id="pages-visited">0</span>
+                <span class="stat-label">Pages Visited</span>
+            </div>
+            <div class="stat">
+                <span class="stat-value" id="pages-queued">0</span>
+                <span class="stat-label">Pages Queued</span>
+            </div>
+            <div class="stat">
+                <span class="stat-value" id="phase-label">—</span>
+                <span class="stat-label">Phase</span>
+            </div>
+        </div>
+
+        <div class="current-activity">
+            <div class="activity-dot"></div>
+            <span id="current-url">Preparing...</span>
+        </div>
     </div>
 
     <div id="error-message" class="error-box" style="display:none;"></div>

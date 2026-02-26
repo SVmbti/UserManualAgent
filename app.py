@@ -72,48 +72,44 @@ def start_scan():
 
     max_pages = int(data.get("max_pages", Config.MAX_PAGES))
 
-    # Build auth config
-    auth_type = data.get("auth_type", "none")
-    auth_config = {"type": auth_type}
-    if auth_type == "form":
-        auth_config.update({
-            "login_url": data.get("login_url", ""),
-            "username": data.get("username", ""),
-            "password": data.get("password", ""),
-            "username_selector": data.get("username_selector", ""),
-            "password_selector": data.get("password_selector", ""),
-            "submit_selector": data.get("submit_selector", ""),
-        })
-    elif auth_type == "basic":
-        auth_config.update({
-            "username": data.get("username", ""),
-            "password": data.get("password", ""),
-        })
-    elif auth_type == "cookies":
-        auth_config.update({
-            "cookies": data.get("cookies", ""),
-            "login_url": data.get("login_url", url),
-        })
-
     scan_id = str(uuid.uuid4())[:8]
     scans[scan_id] = {
-        "status": "starting",
+        "status": "waiting_for_user",
         "url": url,
         "visited": 0,
         "total_queued": 0,
-        "current_url": "",
-        "current_title": "",
+        "current_url": url,
+        "current_title": "Browser opened — please log in",
         "pages": [],
         "error": None,
         "manual_html": None,
         "manual_md": None,
-        "phase": "crawling",
+        "phase": "login",
+        "crawler": None,
     }
 
-    thread = threading.Thread(target=_run_scan, args=(scan_id, url, auth_config, max_pages), daemon=True)
+    thread = threading.Thread(target=_run_scan, args=(scan_id, url, max_pages), daemon=True)
     thread.start()
 
     return jsonify({"scan_id": scan_id, "status_url": f"/scan/{scan_id}/status"})
+
+
+@app.route("/scan/<scan_id>/begin", methods=["POST"])
+def begin_crawl(scan_id):
+    """User signals they have logged in and crawling should start."""
+    scan = scans.get(scan_id)
+    if not scan:
+        return jsonify({"error": "Scan not found"}), 404
+    if scan["status"] != "waiting_for_user":
+        return jsonify({"error": "Scan is not waiting for user"}), 400
+
+    crawler = scan.get("crawler")
+    if crawler:
+        crawler.begin()
+        scan["status"] = "crawling"
+        scan["phase"] = "crawling"
+        scan["current_title"] = "Starting crawl..."
+    return jsonify({"ok": True})
 
 
 @app.route("/scan/<scan_id>/status")
@@ -163,10 +159,8 @@ def serve_output(filepath):
 # ---------------------------------------------------------------------------
 
 
-def _run_scan(scan_id, url, auth_config, max_pages):
+def _run_scan(scan_id, url, max_pages):
     scan = scans[scan_id]
-    scan["status"] = "crawling"
-    scan["phase"] = "crawling"
 
     def on_progress(visited, total_queued, current_url, page_title):
         scan["visited"] = visited
@@ -175,15 +169,18 @@ def _run_scan(scan_id, url, auth_config, max_pages):
         scan["current_title"] = page_title
 
     try:
-        # Phase 1: Crawl
+        # Create crawler and store reference so the /begin endpoint can signal it
         crawler = SiteCrawler(
             scan_id=scan_id,
             url=url,
-            auth_config=auth_config,
             max_pages=max_pages,
             progress_callback=on_progress,
         )
+        scan["crawler"] = crawler
+
+        # Phase 1 + 2: Open browser, wait for user, then crawl
         pages = crawler.crawl()
+        scan["crawler"] = None  # release reference
         scan["pages"] = pages
         scan["visited"] = len(pages)
 
@@ -192,7 +189,7 @@ def _run_scan(scan_id, url, auth_config, max_pages):
             scan["error"] = "No pages were discovered."
             return
 
-        # Phase 2: Analyze
+        # Phase 3: Analyze
         scan["status"] = "analyzing"
         scan["phase"] = "analyzing"
         analyzer = PageAnalyzer(openai_api_key=Config.OPENAI_API_KEY)
@@ -201,7 +198,7 @@ def _run_scan(scan_id, url, auth_config, max_pages):
             scan["current_title"] = f"Analyzing page {i + 1}/{len(pages)}"
             analyzer.analyze(page_info)
 
-        # Phase 3: Build manual
+        # Phase 4: Build manual
         scan["status"] = "generating"
         scan["phase"] = "generating"
         scan["current_title"] = "Generating user manual..."

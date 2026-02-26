@@ -1,13 +1,13 @@
 import os
 import hashlib
 import logging
+import threading
 from urllib.parse import urlparse, urljoin, urldefrag
 from collections import deque
 
 from playwright.sync_api import sync_playwright
 
 from config import Config
-from scanner.auth_handler import AuthHandler
 
 logger = logging.getLogger(__name__)
 
@@ -15,16 +15,18 @@ logger = logging.getLogger(__name__)
 class SiteCrawler:
     """Crawls a web application using Playwright, capturing screenshots and DOM structure."""
 
-    def __init__(self, scan_id, url, auth_config=None, max_pages=None, progress_callback=None):
+    def __init__(self, scan_id, url, max_pages=None, progress_callback=None):
         self.scan_id = scan_id
         self.base_url = url.rstrip("/")
-        self.auth_config = auth_config
         self.max_pages = max_pages or Config.MAX_PAGES
         self.progress_callback = progress_callback
 
         self.visited = set()
         self.pages = []
         self.queue = deque()
+
+        # Threading event: the background thread waits on this before crawling
+        self._begin_event = threading.Event()
 
         self.output_dir = os.path.join(Config.OUTPUT_DIR, scan_id)
         self.screenshots_dir = os.path.join(self.output_dir, "screenshots")
@@ -35,22 +37,56 @@ class SiteCrawler:
     # ------------------------------------------------------------------
 
     def crawl(self):
-        """Run the full crawl and return a list of page info dicts."""
+        """
+        Two-phase crawl:
+        1) Launch a HEADED browser at the target URL and wait for the user to log in.
+        2) When begin() is called (sets _begin_event), capture the current URL
+           and start the BFS crawl with the authenticated session.
+        """
         with sync_playwright() as pw:
-            browser = pw.chromium.launch(headless=Config.HEADLESS)
+            # Phase 1 — Open a visible browser for the user
+            browser = pw.chromium.launch(headless=False)
             context = browser.new_context(
                 viewport={"width": Config.SCREENSHOT_WIDTH, "height": Config.SCREENSHOT_HEIGHT},
                 ignore_https_errors=True,
             )
             page = context.new_page()
 
-            # Authenticate if configured
-            if self.auth_config and self.auth_config.get("type") != "none":
-                handler = AuthHandler(page, context)
-                handler.authenticate(self.auth_config)
+            try:
+                page.goto(self.base_url, wait_until="domcontentloaded", timeout=Config.CRAWL_TIMEOUT)
+            except Exception as exc:
+                logger.warning("Initial navigation failed: %s", exc)
 
-            # BFS crawl starting from the base URL
-            self.queue.append(self.base_url)
+            logger.info("Browser opened at %s — waiting for user to log in...", self.base_url)
+
+            # Notify the caller that the browser is open
+            if self.progress_callback:
+                self.progress_callback(
+                    visited=0,
+                    total_queued=0,
+                    current_url=self.base_url,
+                    page_title="Browser opened — please log in",
+                )
+
+            # Wait until begin() is called (or timeout after 10 minutes)
+            self._begin_event.wait(timeout=600)
+
+            if not self._begin_event.is_set():
+                logger.warning("Timed out waiting for user to begin crawl.")
+                browser.close()
+                return self.pages
+
+            # Phase 2 — Grab the current URL (user may have navigated) and crawl
+            start_url = page.url or self.base_url
+            logger.info("User confirmed — starting crawl from %s", start_url)
+
+            # Update base_url to where the user ended up (preserves same-domain check)
+            self.base_url = self._derive_base_url(start_url)
+
+            # Crawl the current page first (user is already on it)
+            self._crawl_page(page, start_url)
+
+            # BFS crawl remaining pages
             while self.queue and len(self.visited) < self.max_pages:
                 url = self.queue.popleft()
                 if url in self.visited:
@@ -60,6 +96,10 @@ class SiteCrawler:
             browser.close()
 
         return self.pages
+
+    def begin(self):
+        """Signal that the user has finished logging in and crawling should start."""
+        self._begin_event.set()
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -72,13 +112,18 @@ class SiteCrawler:
             return
         self.visited.add(canonical)
 
-        try:
-            page.goto(url, wait_until="domcontentloaded", timeout=Config.CRAWL_TIMEOUT)
-            # Give dynamic content a moment to render
-            page.wait_for_timeout(2000)
-        except Exception as exc:
-            logger.warning("Failed to load %s: %s", url, exc)
-            return
+        # Only navigate if we aren't already on this page
+        current = self._canonicalize(page.url)
+        if current != canonical:
+            try:
+                page.goto(url, wait_until="domcontentloaded", timeout=Config.CRAWL_TIMEOUT)
+                page.wait_for_timeout(2000)
+            except Exception as exc:
+                logger.warning("Failed to load %s: %s", url, exc)
+                return
+        else:
+            # Still wait a beat for any dynamic content
+            page.wait_for_timeout(1000)
 
         # Capture screenshot
         screenshot_filename = self._screenshot_name(url)
@@ -242,3 +287,8 @@ class SiteCrawler:
         parsed = urlparse(url)
         path_part = parsed.path.strip("/").replace("/", "_")[:40] or "index"
         return f"{path_part}_{url_hash}.png"
+
+    def _derive_base_url(self, current_url):
+        """Derive base URL (scheme + domain) from wherever the user ended up."""
+        parsed = urlparse(current_url)
+        return f"{parsed.scheme}://{parsed.netloc}"

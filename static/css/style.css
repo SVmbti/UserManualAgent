@@ -475,6 +475,42 @@ body {
     flex: 1;
 }
 
+/* ====================== Login Prompt ====================== */
+
+.login-prompt {
+    text-align: center;
+    padding: 32px 20px;
+}
+
+.login-prompt-icon {
+    font-size: 3rem;
+    margin-bottom: 16px;
+    animation: pulse 2s ease infinite;
+}
+
+.login-prompt h3 {
+    font-size: 1.2rem;
+    margin-bottom: 10px;
+}
+
+.login-prompt p {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    max-width: 480px;
+    margin: 0 auto 24px;
+    line-height: 1.6;
+}
+
+.login-prompt .btn {
+    max-width: 360px;
+    margin: 0 auto;
+}
+
+.status-badge.waiting {
+    background: rgba(251, 191, 36, 0.15);
+    color: var(--warning);
+}
+
 /* ====================== Pages List ====================== */
 
 .pages-list {
@@ -550,38 +586,90 @@ body {
 /* ====================== Animations ====================== */
 
 @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(-8px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 @keyframes slideIn {
-    from { opacity: 0; transform: translateX(-12px); }
-    to { opacity: 1; transform: translateX(0); }
+    from {
+        opacity: 0;
+        transform: translateX(-12px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
 }
 
 @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.4; }
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.4;
+    }
 }
 
 @keyframes shimmer {
-    0% { transform: translateX(-100%); }
-    100% { transform: translateX(200%); }
+    0% {
+        transform: translateX(-100%);
+    }
+
+    100% {
+        transform: translateX(200%);
+    }
 }
 
 /* ====================== Responsive ====================== */
 
 @media (max-width: 600px) {
-    .container { padding: 24px 16px 60px; }
-    .hero h1 { font-size: 1.6rem; }
-    .form-row { flex-direction: column; gap: 0; }
-    .glass-card { padding: 20px; }
-    .progress-stats { gap: 12px; }
-    .stat-value { font-size: 1.4rem; }
-    .done-actions { flex-direction: column; }
-    .features-grid { grid-template-columns: repeat(2, 1fr); }
+    .container {
+        padding: 24px 16px 60px;
+    }
+
+    .hero h1 {
+        font-size: 1.6rem;
+    }
+
+    .form-row {
+        flex-direction: column;
+        gap: 0;
+    }
+
+    .glass-card {
+        padding: 20px;
+    }
+
+    .progress-stats {
+        gap: 12px;
+    }
+
+    .stat-value {
+        font-size: 1.4rem;
+    }
+
+    .done-actions {
+        flex-direction: column;
+    }
+
+    .features-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
 }

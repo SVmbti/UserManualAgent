@@ -6,23 +6,8 @@
 
 document.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('scan-form');
-    const authSelect = document.getElementById('auth_type');
     const maxPagesSlider = document.getElementById('max_pages');
     const maxPagesValue = document.getElementById('max-pages-value');
-
-    // Auth type toggle
-    if (authSelect) {
-        authSelect.addEventListener('change', () => {
-            document.querySelectorAll('.auth-fields').forEach(el => {
-                el.style.display = 'none';
-            });
-            const selected = authSelect.value;
-            if (selected !== 'none') {
-                const target = document.getElementById(`auth-${selected}`);
-                if (target) target.style.display = 'block';
-            }
-        });
-    }
 
     // Range slider label
     if (maxPagesSlider && maxPagesValue) {
@@ -40,18 +25,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const btnText = btn.querySelector('.btn-text');
             const btnLoader = btn.querySelector('.btn-loader');
             btn.disabled = true;
-            btnText.textContent = 'Starting...';
+            btnText.textContent = 'Opening browser...';
             btnLoader.style.display = 'inline-block';
 
             const formData = new FormData(form);
             const data = {};
             formData.forEach((val, key) => { data[key] = val; });
-
-            // Map basic auth fields
-            if (data.auth_type === 'basic') {
-                data.username = data.basic_username || '';
-                data.password = data.basic_password || '';
-            }
 
             try {
                 const res = await fetch('/scan', {
@@ -64,7 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (result.error) {
                     alert(result.error);
                     btn.disabled = false;
-                    btnText.textContent = 'Start Scan';
+                    btnText.textContent = 'Open Site & Start';
                     btnLoader.style.display = 'none';
                     return;
                 }
@@ -74,7 +53,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } catch (err) {
                 alert('Failed to start scan: ' + err.message);
                 btn.disabled = false;
-                btnText.textContent = 'Start Scan';
+                btnText.textContent = 'Open Site & Start';
                 btnLoader.style.display = 'none';
             }
         });
@@ -115,11 +94,28 @@ async function pollStatus(scanId) {
 function updateProgressUI(data, scanId) {
     const phaseTitle = document.getElementById('phase-title');
     const statusBadge = document.getElementById('status-badge');
+    const loginPrompt = document.getElementById('login-prompt');
+    const crawlProgress = document.getElementById('crawl-progress');
     const progressBar = document.getElementById('progress-bar');
     const pagesVisited = document.getElementById('pages-visited');
     const pagesQueued = document.getElementById('pages-queued');
     const phaseLabel = document.getElementById('phase-label');
     const currentUrl = document.getElementById('current-url');
+
+    // Show/hide login prompt vs crawl progress
+    if (data.phase === 'login' || data.status === 'waiting_for_user') {
+        if (loginPrompt) loginPrompt.style.display = 'block';
+        if (crawlProgress) crawlProgress.style.display = 'none';
+        if (phaseTitle) phaseTitle.textContent = '🌐 Browser is open — log in now';
+        if (statusBadge) {
+            statusBadge.textContent = 'Waiting';
+            statusBadge.className = 'status-badge waiting';
+        }
+        return;
+    } else {
+        if (loginPrompt) loginPrompt.style.display = 'none';
+        if (crawlProgress) crawlProgress.style.display = 'block';
+    }
 
     // Phase title
     const phaseTitles = {
@@ -177,8 +173,6 @@ function updateProgressUI(data, scanId) {
             document.getElementById('download-html-btn').href = `/scan/${scanId}/download/html`;
             document.getElementById('download-md-btn').href = `/scan/${scanId}/download/md`;
         }
-        // Stop shimmer animation
-        if (progressBar) progressBar.style.setProperty('--shimmer', 'none');
     }
 
     // Error
@@ -186,6 +180,31 @@ function updateProgressUI(data, scanId) {
         updateError(data.error || 'An unknown error occurred.');
     }
 }
+
+
+// ----- Begin Crawl (user finished logging in) -----
+
+async function beginCrawl(scanId) {
+    const btn = document.getElementById('begin-crawl-btn');
+    btn.disabled = true;
+    btn.textContent = 'Starting crawl...';
+
+    try {
+        const res = await fetch(`/scan/${scanId}/begin`, { method: 'POST' });
+        const data = await res.json();
+        if (data.error) {
+            alert(data.error);
+            btn.disabled = false;
+            btn.textContent = '✅ I\'m Logged In — Begin Crawl';
+        }
+        // The poll loop will pick up the state change automatically
+    } catch (err) {
+        alert('Failed to begin crawl: ' + err.message);
+        btn.disabled = false;
+        btn.textContent = '✅ I\'m Logged In — Begin Crawl';
+    }
+}
+
 
 function updateError(message) {
     const errBox = document.getElementById('error-message');
