@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block title %}User Manual Agent — Scan a Web App{% endblock %}
+
+{% block content %}
+<div class="hero">
+    <h1>Generate a <span class="gradient-text">User Manual</span> for any Web App</h1>
+    <p class="subtitle">Enter a URL and we'll crawl the site, capture screenshots, and create a comprehensive user
+        manual automatically.</p>
+</div>
+
+<form id="scan-form" class="scan-card glass-card">
+    <div class="form-section">
+        <label for="url" class="form-label">Target URL</label>
+        <input type="url" id="url" name="url" class="form-input" placeholder="https://example.com" required autofocus>
+    </div>
+
+    <div class="form-row">
+        <div class="form-section flex-1">
+            <label for="max_pages" class="form-label">
+                Max Pages <span class="label-hint" id="max-pages-value">25</span>
+            </label>
+            <input type="range" id="max_pages" name="max_pages" min="1" max="100" value="25" class="form-range">
+        </div>
+        <div class="form-section flex-1">
+            <label for="auth_type" class="form-label">Authentication</label>
+            <select id="auth_type" name="auth_type" class="form-select">
+                <option value="none">None</option>
+                <option value="form">Form Login</option>
+                <option value="basic">HTTP Basic Auth</option>
+                <option value="cookies">Cookie Injection</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Auth: Form Login -->
+    <div id="auth-form" class="auth-fields" style="display:none;">
+        <div class="form-section">
+            <label for="login_url" class="form-label">Login Page URL</label>
+            <input type="url" id="login_url" name="login_url" class="form-input"
+                placeholder="https://example.com/login">
+        </div>
+        <div class="form-row">
+            <div class="form-section flex-1">
+                <label for="username" class="form-label">Username / Email</label>
+                <input type="text" id="username" name="username" class="form-input">
+            </div>
+            <div class="form-section flex-1">
+                <label for="password" class="form-label">Password</label>
+                <input type="password" id="password" name="password" class="form-input">
+            </div>
+        </div>
+        <details class="advanced-toggle">
+            <summary>Advanced Selectors</summary>
+            <div class="form-row" style="margin-top:12px;">
+                <div class="form-section flex-1">
+                    <label class="form-label">Username Selector</label>
+                    <input type="text" name="username_selector" class="form-input form-input-sm"
+                        placeholder="auto-detect">
+                </div>
+                <div class="form-section flex-1">
+                    <label class="form-label">Password Selector</label>
+                    <input type="text" name="password_selector" class="form-input form-input-sm"
+                        placeholder="auto-detect">
+                </div>
+                <div class="form-section flex-1">
+                    <label class="form-label">Submit Selector</label>
+                    <input type="text" name="submit_selector" class="form-input form-input-sm"
+                        placeholder="auto-detect">
+                </div>
+            </div>
+        </details>
+    </div>
+
+    <!-- Auth: Basic -->
+    <div id="auth-basic" class="auth-fields" style="display:none;">
+        <div class="form-row">
+            <div class="form-section flex-1">
+                <label class="form-label">Username</label>
+                <input type="text" name="basic_username" class="form-input">
+            </div>
+            <div class="form-section flex-1">
+                <label class="form-label">Password</label>
+                <input type="password" name="basic_password" class="form-input">
+            </div>
+        </div>
+    </div>
+
+    <!-- Auth: Cookies -->
+    <div id="auth-cookies" class="auth-fields" style="display:none;">
+        <div class="form-section">
+            <label class="form-label">Cookies (JSON array)</label>
+            <textarea name="cookies" class="form-textarea" rows="4"
+                placeholder='[{"name": "session", "value": "abc123", "domain": ".example.com"}]'></textarea>
+        </div>
+    </div>
+
+    <button type="submit" class="btn btn-primary" id="scan-btn">
+        <span class="btn-text">Start Scan</span>
+        <span class="btn-loader" style="display:none;"></span>
+    </button>
+</form>
+
+<div class="features-grid">
+    <div class="feature-card glass-card">
+        <div class="feature-icon">🔍</div>
+        <h3>Smart Crawling</h3>
+        <p>Discovers all pages & features using a headless browser</p>
+    </div>
+    <div class="feature-card glass-card">
+        <div class="feature-icon">📸</div>
+        <h3>Screenshots</h3>
+        <p>Captures full-page screenshots of every discovered page</p>
+    </div>
+    <div class="feature-card glass-card">
+        <div class="feature-icon">🤖</div>
+        <h3>AI Analysis</h3>
+        <p>Optional GPT-4 Vision analysis for rich descriptions</p>
+    </div>
+    <div class="feature-card glass-card">
+        <div class="feature-icon">📄</div>
+        <h3>Export Manual</h3>
+        <p>Download as self-contained HTML or Markdown</p>
+    </div>
+</div>
+{% endblock %}

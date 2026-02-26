@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}User Manual — User Manual Agent{% endblock %}
+
+{% block content %}
+<div class="manual-toolbar glass-card">
+    <h2>📘 Generated User Manual</h2>
+    <div class="toolbar-actions">
+        <a href="/scan/{{ scan_id }}/download/html" class="btn btn-secondary btn-sm">⬇ HTML</a>
+        <a href="/scan/{{ scan_id }}/download/md" class="btn btn-secondary btn-sm">⬇ Markdown</a>
+    </div>
+</div>
+
+<div class="manual-frame">
+    <iframe id="manual-iframe" srcdoc="{{ manual_html|e }}" frameborder="0"></iframe>
+</div>
+{% endblock %}

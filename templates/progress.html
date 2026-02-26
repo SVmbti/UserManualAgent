@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}Scanning... — User Manual Agent{% endblock %}
+
+{% block content %}
+<div class="progress-container glass-card">
+    <div class="progress-header">
+        <h2 id="phase-title">Starting scan...</h2>
+        <span class="status-badge" id="status-badge">Initializing</span>
+    </div>
+
+    <div class="progress-bar-wrapper">
+        <div class="progress-bar" id="progress-bar" style="width: 0%"></div>
+    </div>
+
+    <div class="progress-stats">
+        <div class="stat">
+            <span class="stat-value" id="pages-visited">0</span>
+            <span class="stat-label">Pages Visited</span>
+        </div>
+        <div class="stat">
+            <span class="stat-value" id="pages-queued">0</span>
+            <span class="stat-label">Pages Queued</span>
+        </div>
+        <div class="stat">
+            <span class="stat-value" id="phase-label">—</span>
+            <span class="stat-label">Phase</span>
+        </div>
+    </div>
+
+    <div class="current-activity">
+        <div class="activity-dot"></div>
+        <span id="current-url">Preparing browser...</span>
+    </div>
+
+    <div id="error-message" class="error-box" style="display:none;"></div>
+
+    <div id="done-actions" class="done-actions" style="display:none;">
+        <a id="view-manual-btn" href="#" class="btn btn-primary">📘 View Manual</a>
+        <a id="download-html-btn" href="#" class="btn btn-secondary">⬇ Download HTML</a>
+        <a id="download-md-btn" href="#" class="btn btn-secondary">⬇ Download Markdown</a>
+    </div>
+</div>
+
+<div id="pages-list" class="pages-list"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    initProgress('{{ scan_id }}');
+</script>
+{% endblock %}
