@@ -124,10 +124,18 @@ class SiteCrawler:
                 const selectors = ["nav a", "nav button", "header a", "header button", "[role='menuitem']", ".nav-link", ".menu-item"];
                 const elements = document.querySelectorAll(selectors.join(', '));
                 
+                const ignoreKeywords = ['language', 'sprache', 'region', 'country', 'english', 'deutsch', 'locale', 'timezone'];
+                
                 elements.forEach((el, index) => {
                     const text = (el.textContent || el.innerText || el.value || '').trim().substring(0, 100);
-                    // Filter out empty or invisible items (basic check)
-                    if (text && el.offsetWidth > 0 && el.offsetHeight > 0) {
+                    const textLower = text.toLowerCase();
+                    const attrText = ((el.id || "") + " " + (el.className || "")).toLowerCase();
+                    
+                    const isLangOrRegionAttr = ["lang-", "language", "region", "locale"].some(kw => attrText.includes(kw));
+                    const isLangOrRegionText = ignoreKeywords.some(kw => textLower.includes(kw));
+                    
+                    // Filter out empty, invisible items, or language/regional settings
+                    if (text && el.offsetWidth > 0 && el.offsetHeight > 0 && !isLangOrRegionAttr && !isLangOrRegionText) {
                         results.push({ index: index, text: text, tag: el.tagName.toLowerCase() });
                     }
                 });
@@ -153,21 +161,14 @@ class SiteCrawler:
                 logger.info("Clicking interactive menu item %d/%d: '%s'", i + 1, len(menu_items), item["text"])
                 
                 # We need to re-locate the element since the DOM might have changed after navigation
-                # We use a JS evaluation to click the Nth valid interactive item.
+                # We use a JS evaluation to click the interactive item by its original NodeList index.
                 clicked = page.evaluate(r"""(targetIndex) => {
                     const selectors = ["nav a", "nav button", "header a", "header button", "[role='menuitem']", ".nav-link", ".menu-item"];
                     const elements = document.querySelectorAll(selectors.join(', '));
-                    let validIndex = -1;
                     
-                    for (let el of elements) {
-                        const text = (el.textContent || el.innerText || el.value || '').trim();
-                        if (text && el.offsetWidth > 0 && el.offsetHeight > 0) {
-                            validIndex++;
-                            if (validIndex === targetIndex) {
-                                el.click();
-                                return true;
-                            }
-                        }
+                    if (elements[targetIndex]) {
+                        elements[targetIndex].click();
+                        return true;
                     }
                     return false;
                 }""", item["index"])
