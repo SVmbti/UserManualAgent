@@ -53,6 +53,9 @@ class PageAnalyzer:
 
         dom_summary = self._build_dom_summary(page_info)
 
+        trigger_action = page_info.get("trigger_action")
+        context_str = f"Context: The user reached this view by: {trigger_action}\n\n" if trigger_action else ""
+
         response = self._client.chat.completions.create(
             model="gpt-4o",
             messages=[
@@ -72,11 +75,12 @@ class PageAnalyzer:
                             "text": (
                                 f"Page title: {page_info.get('title', 'Untitled')}\n"
                                 f"URL: {page_info.get('url', '')}\n\n"
+                                f"{context_str}"
                                 f"DOM structure:\n{dom_summary}\n\n"
                                 "Please provide:\n"
-                                "1. **Page Purpose** — A one-sentence description of what this page is for.\n"
-                                "2. **Key Features** — A bullet list of the main features/elements on this page.\n"
-                                "3. **How to Use** — Step-by-step instructions for using this page.\n"
+                                "1. **Page Purpose** — A one-sentence description of what this view is for.\n"
+                                "2. **Key Features** — A bullet list of the main features/elements visible.\n"
+                                "3. **How to Use** — Step-by-step instructions for interacting with this view.\n"
                                 "Format your response in Markdown."
                             ),
                         },

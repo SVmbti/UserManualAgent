@@ -15,11 +15,12 @@ logger = logging.getLogger(__name__)
 class SiteCrawler:
     """Crawls a web application using Playwright, capturing screenshots and DOM structure."""
 
-    def __init__(self, scan_id, url, max_pages=None, progress_callback=None):
+    def __init__(self, scan_id, url, max_pages=None, progress_callback=None, crawl_mode="bfs"):
         self.scan_id = scan_id
         self.base_url = url.rstrip("/")
         self.max_pages = max_pages or Config.MAX_PAGES
         self.progress_callback = progress_callback
+        self.crawl_mode = crawl_mode
 
         self.visited = set()
         self.pages = []
@@ -84,14 +85,19 @@ class SiteCrawler:
             self.base_url = self._derive_base_url(start_url)
 
             # Crawl the current page first (user is already on it)
-            self._crawl_page(page, start_url)
+            self._crawl_page(page, start_url, trigger_action="Initial Base Page", trigger_element_text="")
 
-            # BFS crawl remaining pages
-            while self.queue and len(self.visited) < self.max_pages:
-                url = self.queue.popleft()
-                if url in self.visited:
-                    continue
-                self._crawl_page(page, url)
+            if self.crawl_mode == "interactive":
+                logger.info("Starting interactive menu crawl...")
+                self._crawl_interactive_menus(page, start_url)
+            else:
+                logger.info("Starting BFS link crawl...")
+                # BFS crawl remaining pages
+                while self.queue and len(self.visited) < self.max_pages:
+                    url = self.queue.popleft()
+                    if url in self.visited:
+                        continue
+                    self._crawl_page(page, url)
 
             browser.close()
 
@@ -105,16 +111,97 @@ class SiteCrawler:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _crawl_page(self, page, url):
+    def _crawl_interactive_menus(self, page, start_url):
+        """Interactively identify and click menu items, resetting to base page each time."""
+        # 1. Identify interactive elements on the base page
+        try:
+            page.goto(start_url, wait_until="domcontentloaded", timeout=Config.CRAWL_TIMEOUT)
+            page.wait_for_timeout(2000)
+            
+            # Find interactive elements (navs, headers, buttons)
+            menu_items = page.evaluate(r"""() => {
+                const results = [];
+                const selectors = ["nav a", "nav button", "header a", "header button", "[role='menuitem']", ".nav-link", ".menu-item"];
+                const elements = document.querySelectorAll(selectors.join(', '));
+                
+                elements.forEach((el, index) => {
+                    const text = (el.textContent || el.innerText || el.value || '').trim().substring(0, 100);
+                    // Filter out empty or invisible items (basic check)
+                    if (text && el.offsetWidth > 0 && el.offsetHeight > 0) {
+                        results.push({ index: index, text: text, tag: el.tagName.toLowerCase() });
+                    }
+                });
+                return results;
+            }""")
+        except Exception as exc:
+            logger.warning("Failed to extract interactive menus from %s: %s", start_url, exc)
+            menu_items = []
+
+        logger.info("Found %d interactive menu items to crawl.", len(menu_items))
+
+        # 2. Iterate and click
+        for i, item in enumerate(menu_items):
+            if len(self.visited) >= self.max_pages:
+                break
+
+            try:
+                # Reset to base page
+                if page.url != start_url:
+                    page.goto(start_url, wait_until="domcontentloaded", timeout=Config.CRAWL_TIMEOUT)
+                    page.wait_for_timeout(1000)
+
+                logger.info("Clicking interactive menu item %d/%d: '%s'", i + 1, len(menu_items), item["text"])
+                
+                # We need to re-locate the element since the DOM might have changed after navigation
+                # We use a JS evaluation to click the Nth valid interactive item.
+                clicked = page.evaluate(r"""(targetIndex) => {
+                    const selectors = ["nav a", "nav button", "header a", "header button", "[role='menuitem']", ".nav-link", ".menu-item"];
+                    const elements = document.querySelectorAll(selectors.join(', '));
+                    let validIndex = -1;
+                    
+                    for (let el of elements) {
+                        const text = (el.textContent || el.innerText || el.value || '').trim();
+                        if (text && el.offsetWidth > 0 && el.offsetHeight > 0) {
+                            validIndex++;
+                            if (validIndex === targetIndex) {
+                                el.click();
+                                return true;
+                            }
+                        }
+                    }
+                    return false;
+                }""", item["index"])
+
+                if not clicked:
+                    logger.warning("Element '%s' not found for clicking.", item["text"])
+                    continue
+
+                # Wait for any network or DOM updates
+                page.wait_for_timeout(3000)
+                
+                # We treat the current page state as a new view
+                # To maintain uniqueness in our BFS visited list if the URL didn't change (e.g., SPA modal),
+                # we'll use a derived virtual URL if the actual URL remains the same
+                virtual_url = page.url
+                if virtual_url == start_url:
+                    virtual_url = f"{start_url}#interaction_{i}_{hashlib.md5(item['text'].encode()).hexdigest()[:6]}"
+                
+                trigger_action = f"Clicked menu item '{item['text']}'"
+                self._crawl_page(page, virtual_url, trigger_action=trigger_action, trigger_element_text=item['text'])
+
+            except Exception as exc:
+                logger.warning("Error interacting with menu item '%s': %s", item["text"], exc)
+
+    def _crawl_page(self, page, url, trigger_action=None, trigger_element_text=None):
         """Visit a single page: screenshot, extract info, discover links."""
         canonical = self._canonicalize(url)
         if canonical in self.visited:
             return
         self.visited.add(canonical)
 
-        # Only navigate if we aren't already on this page
+        # Only navigate if we aren't already on this page (and it's not a virtual URL)
         current = self._canonicalize(page.url)
-        if current != canonical:
+        if current != canonical and not url.startswith(current + "#interaction_"):
             try:
                 page.goto(url, wait_until="domcontentloaded", timeout=Config.CRAWL_TIMEOUT)
                 page.wait_for_timeout(2000)
@@ -135,9 +222,15 @@ class SiteCrawler:
             screenshot_path = None
 
         # Extract structured page data
-        page_info = self._extract_page_info(page, url)
+        page_info = self._extract_page_info(page, page.url)
         page_info["screenshot"] = screenshot_path
         page_info["screenshot_filename"] = screenshot_filename
+        
+        if trigger_action:
+            page_info["trigger_action"] = trigger_action
+        if trigger_element_text:
+            page_info["trigger_element_text"] = trigger_element_text
+            
         self.pages.append(page_info)
 
         # Progress callback

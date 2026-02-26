@@ -71,6 +71,7 @@ def start_scan():
         url = "https://" + url
 
     max_pages = int(data.get("max_pages", Config.MAX_PAGES))
+    crawl_mode = data.get("crawl_mode", "bfs")
 
     scan_id = str(uuid.uuid4())[:8]
     scans[scan_id] = {
@@ -88,7 +89,7 @@ def start_scan():
         "crawler": None,
     }
 
-    thread = threading.Thread(target=_run_scan, args=(scan_id, url, max_pages), daemon=True)
+    thread = threading.Thread(target=_run_scan, args=(scan_id, url, max_pages, crawl_mode), daemon=True)
     thread.start()
 
     return jsonify({"scan_id": scan_id, "status_url": f"/scan/{scan_id}/status"})
@@ -159,7 +160,7 @@ def serve_output(filepath):
 # ---------------------------------------------------------------------------
 
 
-def _run_scan(scan_id, url, max_pages):
+def _run_scan(scan_id, url, max_pages, crawl_mode="bfs"):
     scan = scans[scan_id]
 
     def on_progress(visited, total_queued, current_url, page_title):
@@ -175,6 +176,7 @@ def _run_scan(scan_id, url, max_pages):
             url=url,
             max_pages=max_pages,
             progress_callback=on_progress,
+            crawl_mode=crawl_mode
         )
         scan["crawler"] = crawler
 

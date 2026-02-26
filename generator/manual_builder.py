@@ -71,11 +71,16 @@ class ManualBuilder:
             features = page.get("key_features", [])
             howto = page.get("how_to_use", [])
             screenshot_filename = page.get("screenshot_filename", "")
+            trigger_action = page.get("trigger_action", "")
 
             lines.append(f"## {i}. {title} {{#{f'section-{i}'}}}")
             lines.append("")
             lines.append(f"**URL:** `{url}`")
             lines.append("")
+
+            if trigger_action:
+                lines.append(f"**How to access:** {trigger_action}")
+                lines.append("")
 
             if screenshot_filename:
                 lines.append(f"![{title}](screenshots/{screenshot_filename})")
@@ -121,6 +126,7 @@ class ManualBuilder:
             features = page.get("key_features", [])
             howto = page.get("how_to_use", [])
             screenshot_path = page.get("screenshot", "")
+            trigger_action = page.get("trigger_action", "")
 
             anchor = f"section-{i}"
             toc_items.append(f'<li><a href="#{anchor}">{title}</a></li>')
@@ -149,6 +155,7 @@ class ManualBuilder:
             <section id="{anchor}" class="page-section">
                 <h2>{i}. {title}</h2>
                 <p class="page-url"><strong>URL:</strong> <code>{url}</code></p>
+                {f'<p class="page-trigger"><strong>How to access:</strong> {trigger_action}</p>' if trigger_action else ''}
                 {img_html}
                 {f'<p class="purpose"><strong>Overview:</strong> {purpose}</p>' if purpose else ''}
                 {features_html}

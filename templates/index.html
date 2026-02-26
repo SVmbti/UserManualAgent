@@ -16,6 +16,20 @@
     </div>
 
     <div class="form-section">
+        <label class="form-label" style="display:block; margin-bottom:10px;">Crawl Mode</label>
+        <div class="radio-group" style="display: flex; gap: 20px;">
+            <label style="cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                <input type="radio" name="crawl_mode" value="bfs" checked>
+                <span>Standard Follow-Links</span>
+            </label>
+            <label style="cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                <input type="radio" name="crawl_mode" value="interactive">
+                <span>Interactive Menu Clicker</span>
+            </label>
+        </div>
+    </div>
+
+    <div class="form-section">
         <label for="max_pages" class="form-label">
             Max Pages <span class="label-hint" id="max-pages-value">25</span>
         </label>
